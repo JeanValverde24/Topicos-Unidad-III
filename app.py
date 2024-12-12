@@ -1,11 +1,13 @@
 import streamlit as st
 import random
 import pandas as pd
+import json
 from couchbase.cluster import Cluster
 from couchbase.options import ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 from confluent_kafka import Producer, Consumer
 
+# Configuración general
 st.set_page_config(
     page_title="Air Quality Monitoring",
     page_icon="🌍",
@@ -13,6 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Estilos personalizados
 st.markdown("""
     <style>
         body {
@@ -33,16 +36,19 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Configuración de Couchbase
 COUCHBASE_CLUSTER = "couchbases://cb.cj1kcvgq695ufzto.cloud.couchbase.com"
 COUCHBASE_BUCKET = "TopicosAppU3"
-COUCHBASE_USER = "jeanvalverde"  
-COUCHBASE_PASSWORD = "Valverde24c#"  
+COUCHBASE_USER = "jeanvalverde"
+COUCHBASE_PASSWORD = "Valverde24c#"
 
+# Configuración de Kafka
 KAFKA_BOOTSTRAP_SERVERS = "pkc-619z3.us-east1.gcp.confluent.cloud:9092"
-KAFKA_API_KEY = "OGHDQZEIJ2SIKITA"  
-KAFKA_API_SECRET = "D3YGEWzIUka3yM5YAZn+H3dRk7SLiS/Lcl9u/xbiOmB1I8QFehaRW7Qnwyr7CYcD" 
+KAFKA_API_KEY = "OGHDQZEIJ2SIKITA"
+KAFKA_API_SECRET = "D3YGEWzIUka3yM5YAZn+H3dRk7SLiS/Lcl9u/xbiOmB1I8QFehaRW7Qnwyr7CYcD"
 KAFKA_TOPIC = "calidad-del-aire"
 
+# Inicializar conexiones
 def connect_to_couchbase():
     cluster = Cluster(
         COUCHBASE_CLUSTER,
@@ -86,40 +92,49 @@ def generar_datos():
         "PM2.5": round(random.uniform(5, 150), 2),
         "PM10": round(random.uniform(10, 300), 2),
         "Humedad (%)": random.randint(30, 90),
-        "Temperatura (\u00b0C)": round(random.uniform(15, 35), 1),
+        "Temperatura (°C)": round(random.uniform(15, 35), 1),
         "Estado": random.choice(["Bueno", "Moderado", "Peligroso"]),
     }
     return data
 
 # Interfaz
 st.title("🌍 Real-Time Air Quality Monitoring")
-st.subheader("With Kafka and Couchbase")
+st.subheader("Powered by Kafka and Couchbase")
 
+# Botón para almacenar múltiples mensajes en Kafka
 if st.button("Store Messages in Kafka"):
     for i in range(10):
         datos_kafka = generar_datos()
-        producer.produce(KAFKA_TOPIC, value=str(datos_kafka))
+        producer.produce(KAFKA_TOPIC, value=json.dumps(datos_kafka))
     producer.flush()
     st.success("10 messages have been sent to Kafka.")
 
-def save_data():
+# Generar y guardar datos en Couchbase
+if st.button("Generate and Save Air Quality Data"):
     datos_couchbase = generar_datos()
     collection.upsert("ultimo_cambio", datos_couchbase)
     st.write("Data stored in Couchbase:")
     st.json(datos_couchbase)
 
-if st.button("Generate and Save Air Quality Data"):
-    save_data()
-
+# Consumir datos de Kafka
 if st.button("Consume Kafka Data"):
     mensaje = consumer.poll(1.0)
     if mensaje is None:
         st.warning("No new messages in Kafka.")
+    elif mensaje.error():
+        st.error(f"Error consuming message: {mensaje.error()}")
     else:
-        st.write("Message consumed from Kafka:")
-        st.json(eval(mensaje.value().decode('utf-8')))
+        st.write("Raw message from Kafka:")
+        st.json(mensaje.value().decode('utf-8'))
+        try:
+            datos = json.loads(mensaje.value().decode('utf-8'))
+            st.write("Parsed message from Kafka:")
+            st.json(datos)
+        except Exception as e:
+            st.error(f"Error parsing message: {e}")
 
-if st.button("Show Historical Couchbase Data"):
+# Mostrar datos históricos de Couchbase
+if st.button("Show Historical Data from Couchbase"):
     documentos = []
     for i in range(1, 11):
         try:
@@ -132,3 +147,20 @@ if st.button("Show Historical Couchbase Data"):
         st.dataframe(df)
     else:
         st.warning("No historical data available.")
+
+# Mostrar mensajes consumidos recientemente
+if st.button("Show Consumed Messages History"):
+    mensajes = []
+    for _ in range(5):  # Consumir hasta 5 mensajes
+        mensaje = consumer.poll(1.0)
+        if mensaje and not mensaje.error():
+            try:
+                datos = json.loads(mensaje.value().decode('utf-8'))
+                mensajes.append(datos)
+            except Exception as e:
+                st.error(f"Error parsing message: {e}")
+    if mensajes:
+        st.write("Messages consumed from Kafka:")
+        st.json(mensajes)
+    else:
+        st.warning("No messages consumed.")
