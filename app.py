@@ -100,18 +100,20 @@ def generar_datos():
 st.title("🌍 Monitoreo en Tiempo Real de Calidad del Aire")
 st.subheader("Con Kafka y Couchbase")
 
+# Botón para almacenar múltiples mensajes en Kafka
+if st.button("Almacenar Mensajes en Kafka"):
+    for i in range(10):
+        datos_kafka = generar_datos()
+        producer.produce(KAFKA_TOPIC, value=str(datos_kafka))
+    producer.flush()
+    st.success("Se han enviado 10 mensajes a Kafka.")
+
 # Generar y guardar datos
 if st.button("Generar y Guardar Datos de Calidad del Aire"):
     datos_couchbase = generar_datos()
     collection.upsert("ultimo_cambio", datos_couchbase)
     st.write("Datos guardados en Couchbase:")
     st.json(datos_couchbase)
-
-    datos_kafka = generar_datos()
-    producer.produce(KAFKA_TOPIC, value=str(datos_kafka))
-    producer.flush()
-    st.write("Datos enviados a Kafka:")
-    st.json(datos_kafka)
 
 # Consumir datos de Kafka
 if st.button("Consumir Datos de Kafka"):
