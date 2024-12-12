@@ -6,15 +6,13 @@ from couchbase.options import ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 from confluent_kafka import Producer, Consumer
 
-# Configuración general
 st.set_page_config(
-    page_title="Monitoreo de Calidad del Aire",
-    page_icon="🌐",
+    page_title="Air Quality Monitoring",
+    page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Estilos personalizados
 st.markdown("""
     <style>
         body {
@@ -35,19 +33,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Configuración de Couchbase
 COUCHBASE_CLUSTER = "couchbases://cb.cj1kcvgq695ufzto.cloud.couchbase.com"
 COUCHBASE_BUCKET = "TopicosAppU3"
-COUCHBASE_USER = "jeanvalverde"  # Cambiar por el usuario real
-COUCHBASE_PASSWORD = "Valverde24c#"  # Cambiar por la contraseña real
+COUCHBASE_USER = "jeanvalverde"  
+COUCHBASE_PASSWORD = "Valverde24c#"  
 
-# Configuración de Kafka
 KAFKA_BOOTSTRAP_SERVERS = "pkc-619z3.us-east1.gcp.confluent.cloud:9092"
-KAFKA_API_KEY = "OGHDQZEIJ2SIKITA"  # Cambiar por la API Key
-KAFKA_API_SECRET = "D3YGEWzIUka3yM5YAZn+H3dRk7SLiS/Lcl9u/xbiOmB1I8QFehaRW7Qnwyr7CYcD"  # Cambiar por el API Secret
+KAFKA_API_KEY = "OGHDQZEIJ2SIKITA"  
+KAFKA_API_SECRET = "D3YGEWzIUka3yM5YAZn+H3dRk7SLiS/Lcl9u/xbiOmB1I8QFehaRW7Qnwyr7CYcD" 
 KAFKA_TOPIC = "calidad-del-aire"
 
-# Inicializar conexiones
 def connect_to_couchbase():
     cluster = Cluster(
         COUCHBASE_CLUSTER,
@@ -91,43 +86,42 @@ def generar_datos():
         "PM2.5": round(random.uniform(5, 150), 2),
         "PM10": round(random.uniform(10, 300), 2),
         "Humedad (%)": random.randint(30, 90),
-        "Temperatura (°C)": round(random.uniform(15, 35), 1),
+        "Temperatura (\u00b0C)": round(random.uniform(15, 35), 1),
         "Estado": random.choice(["Bueno", "Moderado", "Peligroso"]),
     }
     return data
 
 # Interfaz
-st.title("🌍 Monitoreo en Tiempo Real de Calidad del Aire")
-st.subheader("Con Kafka y Couchbase")
+st.title("🌍 Real-Time Air Quality Monitoring")
+st.subheader("With Kafka and Couchbase")
 
-# Botón para almacenar múltiples mensajes en Kafka
-if st.button("Almacenar Mensajes en Kafka"):
+if st.button("Store Messages in Kafka"):
     for i in range(10):
         datos_kafka = generar_datos()
         producer.produce(KAFKA_TOPIC, value=str(datos_kafka))
     producer.flush()
-    st.success("Se han enviado 10 mensajes a Kafka.")
+    st.success("10 messages have been sent to Kafka.")
 
-# Generar y guardar datos
-if st.button("Generar y Guardar Datos de Calidad del Aire"):
+def save_data():
     datos_couchbase = generar_datos()
     collection.upsert("ultimo_cambio", datos_couchbase)
-    st.write("Datos guardados en Couchbase:")
+    st.write("Data stored in Couchbase:")
     st.json(datos_couchbase)
 
-# Consumir datos de Kafka
-if st.button("Consumir Datos de Kafka"):
+if st.button("Generate and Save Air Quality Data"):
+    save_data()
+
+if st.button("Consume Kafka Data"):
     mensaje = consumer.poll(1.0)
     if mensaje is None:
-        st.warning("No hay mensajes nuevos en Kafka.")
+        st.warning("No new messages in Kafka.")
     else:
-        st.write("Mensaje consumido desde Kafka:")
+        st.write("Message consumed from Kafka:")
         st.json(eval(mensaje.value().decode('utf-8')))
 
-# Mostrar datos históricos
-if st.button("Mostrar Datos Históricos de Couchbase"):
+if st.button("Show Historical Couchbase Data"):
     documentos = []
-    for i in range(1, 11):  # Cambiar el rango según el número de documentos
+    for i in range(1, 11):
         try:
             doc = collection.get(f"cambio_{i}").content_as[dict]
             documentos.append(doc)
@@ -137,4 +131,4 @@ if st.button("Mostrar Datos Históricos de Couchbase"):
         df = pd.DataFrame(documentos)
         st.dataframe(df)
     else:
-        st.warning("No hay datos históricos disponibles.")
+        st.warning("No historical data available.")
